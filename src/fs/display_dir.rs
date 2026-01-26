@@ -1,59 +1,58 @@
-use chrono::{DateTime, Local};
-
 use std::path::Path;
 use std::fs::{read_dir};
 use std::iter::Iterator;
 
-use std::fmt;
-
 use tabled::{builder::Builder, settings::Style, Table};
 
-use crate::Result;
+use crate::cli::error::Result;
+use crate::cli::args::Flags;
+
+use crate::fs::files::{FileType, OptionDate, FileEntry, HEADERS, HEADERS_LONG};
 
 const BITES_PER_NEXT_UNIT: f64 = 1024.0;
-const HEADERS: [&str; 3] = [
-    "Name",
-    "File Type",
-    "Date Modified"
-];
-const HEADERS_LONG: [&str; 6] = [
-    "Name",
-    "File Type",
-    "File Size",
-    "Date Modified",
-    "Date Created",
-    "Accessed"
-];
+const FILE_ATTRIBUTE_HIDDEN: u32 = 0x00000002;
 
+#[cfg(windows)]
+fn is_file_hidden(metadata: std::fs::Metadata, _filename: std::ffi::OsString) -> bool {
+    // Checks if the file is hidden by checking the hidden attribute on windows
 
-#[derive(Debug)]
-pub enum FileType {
-    Dir,
-    File
+    use std::os::windows::fs::MetadataExt;
+    metadata.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0
 }
 
-impl fmt::Display for FileType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let s = match self {
-            FileType::Dir => "Directory",
-            FileType::File => "File",
-        };
-        write!(f, "{}", s)
+#[cfg(unix)]
+fn is_file_hidden(_metadata: std::fs::Metadata, filename: std::ffi::OsString) -> bool {
+    // Checks if the file is hidden on unix by checking the first byte in the file name is a .
+
+    if let Some(&first_byte) = filename.as_encoded_bytes().get(0) {
+        first_byte == 0x2E
+    } else {
+        false
     }
 }
 
-#[derive(Debug)]
-pub struct FileEntry {
-    pub filename: String,
-    pub file_type: FileType,
-    pub file_size: u64,
-    //pub permissions: Permissions,
-    pub date_modified: DateTime<Local>,
-    pub date_created: DateTime<Local>,
-    pub date_accessed: DateTime<Local>,
+pub fn command_ls(curr_path: &Path, flags: Flags) -> Result<String> {
+    // Lists the files in a path
+
+    let dir_entries = read_dir_entries(&curr_path, &flags)?;
+    let mut dir_entries: Vec<FileEntry> = dir_entries.collect();
+
+    if flags.time {
+        dir_entries.sort_by_key(|item| item.date_modified.clone());
+    }
+    if flags.dir {
+        dir_entries.sort_by_key(|item| item.file_type.clone());
+    }
+    if flags.reverse {
+        dir_entries.reverse();
+    }
+
+    let table = build_entry_table(dir_entries, &flags)?;
+
+    Ok(format!("{}", table))
 }
 
-pub fn read_dir_entries(dir_addr: &Path) -> Result<impl Iterator<Item = Result<FileEntry>>> {
+pub fn read_dir_entries(dir_addr: &Path, flags: &Flags) -> Result<impl Iterator<Item = FileEntry>> {
     // From a relative directory address, gives the files and directories founds at that address
     //
     // #Arguments
@@ -64,31 +63,39 @@ pub fn read_dir_entries(dir_addr: &Path) -> Result<impl Iterator<Item = Result<F
 
     let entries = read_dir(dir_addr)?;
 
-    Ok(entries.map(|entry| {
-        let entry = entry?;
-        let metadata = entry.metadata()?;
-        let file_type = entry.file_type()?;
-        let date_modified: DateTime<Local> = metadata.modified()?.into();
-        let date_created: DateTime<Local> = metadata.created()?.into();
-        let date_accessed: DateTime<Local> = metadata.accessed()?.into();
+    Ok(entries.filter_map(|entry| {
+        let Ok(entry) = entry else {
+            return None;
+        };
 
-        Ok(FileEntry {
-            filename: entry.file_name().to_string_lossy().into_owned(),
-            file_type: if file_type.is_dir() {
-                FileType::Dir
-            } else {
-                FileType::File
-            },
-            file_size: metadata.len(),
-            //permissions: metadata.permissions(),
+        let Ok(metadata) = entry.metadata() else {
+            return None;
+        };
+
+        let filename = entry.file_name().to_string_lossy().into_owned();
+        let file_type = FileType::from(metadata.file_type());
+        let file_size = metadata.len();
+
+        let date_modified = OptionDate::from(metadata.modified());
+        let date_created = OptionDate::from(metadata.created());
+        let date_accessed = OptionDate::from(metadata.accessed());
+
+        if !flags.all && is_file_hidden(metadata, entry.file_name()) {
+            return None
+        }
+
+        Some(FileEntry {
+            filename: filename,
+            file_type: file_type,
+            file_size: file_size,
             date_modified: date_modified,
             date_created: date_created,
-            date_accessed: date_accessed
+            date_accessed: date_accessed,
         })
     }))
 }
 
-pub fn build_entry_table(dir_iter: impl Iterator<Item = Result<FileEntry>>, is_long: bool, is_human: bool) -> Result<Table> {
+pub fn build_entry_table(dir_iter: Vec<FileEntry>, flags: &Flags) -> Result<Table> {
     // Returns a table that tabulates and displays information about each entry in a Directory
     //
     // #Arguments
@@ -98,42 +105,38 @@ pub fn build_entry_table(dir_iter: impl Iterator<Item = Result<FileEntry>>, is_l
     // Returns an option with a table or error message
 
     let mut builder = Builder::new();
-    if is_long {
+    if flags.long {
         builder.push_record(HEADERS_LONG);
     } else {
         builder.push_record(HEADERS);
     }
 
-    if is_long {
-        dir_iter
-        .filter_map(Result::ok)
-        .for_each(|entry| {
+    for entry in dir_iter {
+        let record = if flags.long {
             let mut size = format!("{}", entry.file_size);
 
-            if is_human {
+            if flags.human {
                 size = format_size(entry.file_size);
             };
 
-            builder.push_record([
+            vec![
                 entry.filename,
                 format!("{}", entry.file_type),
                 size,
-                format!("{}", entry.date_modified.format("%d-%m-%Y %H:%M:%S")),
-                format!("{}", entry.date_created.format("%d-%m-%Y %H:%M:%S")),
-                format!("{}", entry.date_accessed.format("%d-%m-%Y %H:%M:%S"))
-            ]);
-        });
-    } else {
-        dir_iter
-        .filter_map(Result::ok)
-        .for_each(|entry| {
-            builder.push_record([
+                format!("{}", entry.date_modified),
+                format!("{}", entry.date_created),
+                format!("{}", entry.date_accessed),
+            ]
+        } else {
+            vec![
                 entry.filename,
                 format!("{}", entry.file_type),
-                format!("{}", entry.date_modified.format("%d-%m-%Y %H:%M:%S"))
-            ]);
-        });
-    }
+                format!("{}", entry.date_modified)
+            ]
+        };
+
+        builder.push_record(record);
+    };
 
     let mut table = builder.build();
     table.with(Style::sharp());
@@ -156,6 +159,6 @@ fn format_size(size: u64) -> String {
     } else if size < BITES_PER_NEXT_UNIT.powf(5.0) {
         format!("{:.2} TB", size/BITES_PER_NEXT_UNIT.powf(4.0))
     } else {
-        format!("{:.2} PB", size/1000000.0)
+        format!("{:.2} PB", size/BITES_PER_NEXT_UNIT.powf(5.0))
     }
 }

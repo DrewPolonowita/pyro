@@ -1,7 +1,5 @@
-use crate::Result;
-
 use std::path::{Path, PathBuf};
-use std::fs::canonicalize;
+use crate::cli::error::{Result, Error, ErrorType, AppError};
 
 pub fn command_cd(value: String, curr_path: &Path) -> Result<PathBuf> {
     // From a path adds on a value, checks if it is a real directory and returns a simplified path
@@ -15,14 +13,31 @@ pub fn command_cd(value: String, curr_path: &Path) -> Result<PathBuf> {
     // is not a valid dir
 
     let new_path = curr_path.join(value);
-    let is_path = &new_path.is_dir();
-    let new_path = canonicalize(new_path)?;
+    let is_dir = &new_path.is_dir();
+    let new_path = soft_canonicalize(&new_path);
 
-    if *is_path {
-        Ok(new_path)
+    if *is_dir {
+        return Ok(new_path);
     } else {
-        Err(format!(
-            "File directory does not exist!"
-            ).into())
+        return Err(AppError::from(ERROR_INVALID_PATH));
     }
 }
+
+fn soft_canonicalize(path: &Path) -> PathBuf {
+    let mut new_path = std::path::PathBuf::new();
+
+    for entry in path {
+        if entry == ".." {
+            let _ = new_path.pop();
+        } else {
+            new_path.push(entry);
+        }
+    }
+
+    new_path
+}
+
+const ERROR_INVALID_PATH: Error = Error {
+    error_type: ErrorType::NotFound,
+    error_message: "The directory given is invalid"
+};

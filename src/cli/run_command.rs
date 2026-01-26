@@ -1,69 +1,76 @@
-use crate::cli::format_input::{Command, Flag, Args};
+use crate::cli::args::{Command, Args};
 use crate::cli::help::{command_help, flag_help};
 
-use crate::fs::create_files::{create_directory, remove_directory};
+use crate::fs::create_files::{create_from_path, remove_directory};
 use crate::fs::change_directory::command_cd;
+use crate::fs::file_output::{command_echo, command_cat, command_pwd};
+use crate::fs::move_directory::move_directory;
 
-use std::path::{PathBuf, Path};
+use std::path::PathBuf;
+use crate::cli::error::{AppError, Error, ErrorType};
 
-use crate::fs::display_dir::{read_dir_entries, build_entry_table};
+use crate::fs::display_dir::command_ls;
 use crate::Result;
+use crate::cli::StdStream;
 
-pub fn run_command(args: Args, curr_path: &mut PathBuf) -> Result<()> {
-    if args.flags.contains(&Flag::Help) {
-        match args.command {
+pub fn run_command(args: Args, curr_path: &mut PathBuf, std_stream: &mut StdStream) -> Result<()> {
+    // Runs the required command with the flag arguments for a given command
+    //
+    // #arguments
+    // *args An Args enum containing the command and the given flags for the querry
+    // *curr_path The current working directory path of the file explorer
+    //
+    // #returns
+    // This function returns an empty Result type, this function can return errors but the Ok value is discarded
+    let flags = args.flags;
+
+    if flags.help {
+        std_stream.write(match args.command {
             Some(command) => flag_help(command),
             None => command_help()
-        }
+        });
         return Ok(())
     }
 
     match args.command {
         Some(command) => {
             match command {
-                Command::Cd(value) => {
-                    *curr_path = command_cd(value, &curr_path)?;
+                Command::Cd => {
+                    *curr_path = command_cd(args.argv[0].clone(), &curr_path)?;
                 },
                 Command::Ls => {
-                    let mut is_long = false;
-                    let mut is_human = false;
-
-                    if args.flags.contains(&Flag::Long) {
-                        is_long = true;
-                    }
-                    if args.flags.contains(&Flag::Human) {
-                        is_human = true;
-                    }
-
-                    let _ = command_ls(curr_path, is_long, is_human);
+                    std_stream.write(command_ls(curr_path, flags)?);
                 },
-                Command::New(dir_name) => {
-                    let _ = create_directory(&curr_path, dir_name)?;
+                Command::New => {
+                    let _ = create_from_path(&curr_path, &args.argv, flags)?;
                 },
-                Command::Del(dir_name) => {
-                    let mut is_recursive = false;
-
-                    if args.flags.contains(&Flag::Recursive) {
-                        is_recursive = true;
-                    }
-
-                    let _ = remove_directory(&curr_path, dir_name, is_recursive)?;
+                Command::Del => {
+                    let _ = remove_directory(&curr_path, &args.argv, flags)?;
+                },
+                Command::Echo => {
+                    std_stream.write(command_echo(&args.argv)?);
+                },
+                Command::Cat => {
+                    std_stream.write(command_cat(&args.argv, &std_stream.stdin, &curr_path)?);
+                },
+                Command::Info => {
+                    println!("info")
+                },
+                Command::Pwd => {
+                    std_stream.write(command_pwd(&curr_path, &args.argv)?);
+                },
+                Command::Move => {
+                    let _ = move_directory(&curr_path, &args.argv, &flags)?;
                 }
             }
         },
 
-        None => todo!()
+        None => return Err(AppError::from(ERROR_MISSING_COMMAND))
     }
     Ok(())
 }
 
-fn command_ls(curr_path: &Path, is_long: bool, is_human: bool) -> Result<()> {
-
-    let dir_entries = read_dir_entries(&curr_path)?;
-
-    let table = build_entry_table(dir_entries, is_long, is_human)?;
-
-    println!("{}", table);
-
-    Ok(())
-}
+const ERROR_MISSING_COMMAND: Error = Error {
+    error_type: ErrorType::NotFound,
+    error_message: "Missing command"
+};

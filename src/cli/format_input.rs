@@ -1,32 +1,6 @@
 use crate::Result;
-
-use crate::cli::commands::COMMANDS;
-use crate::cli::commands::FLAGS;
-
-use std::iter::Peekable;
-use std::str::SplitWhitespace;
-
-#[derive(Debug)]
-pub enum Command {
-    Cd(String),
-    Ls,
-    New(String),
-    Del(String)
-
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Flag {
-    Help,
-    Long,
-    Human,
-    Recursive
-}
-
-pub struct Args {
-    pub command: Option<Command>,
-    pub flags: Vec<Flag>
-}
+use crate::cli::args::{FlagsBuilder, Command, Args, ArgRunStatus};
+use crate::cli::error::{AppError, ErrorType, Error, HintError};
 
 pub fn format_input(user_input: &str) -> Result<Args>{
     // Takes a user input as a string and returns a the tokenized and characterized
@@ -44,114 +18,188 @@ pub fn format_input(user_input: &str) -> Result<Args>{
 
     // error when the input is nothing
     if user_input.is_empty() {
-        return Err("Empty string".into())
+        return Err(AppError::from(ERROR_NO_INPUT));
     }
 
-    let mut tokens = user_input.split_whitespace().peekable();
-    let mut flags: Vec<Flag> = Vec::new();
+    let mut tokens = split(user_input);
+
+    let mut flag_builder = FlagsBuilder::new();
+
     let mut main_command: Option<Command> = None;
+    let mut argv = Vec::new();
 
     while let Some(token) = tokens.next() {
+        let token = token?;
 
-        if COMMANDS.contains(&token) {
-
-            // makes sure there isn't two commands
+        if let Some(command) = Command::from(token.as_str()) {
             if !matches!(main_command, None) {
-                return Err(format!(
-                    "Cannot have two commands"
-                    ).into());
+                return Err(AppError::from(ERROR_HAS_TWO_COMMANDS));
             }
+            main_command = Some(command);
 
-            // creates the command
-            main_command = Some(create_command(&mut tokens, token)?);
-
-        } else if FLAGS.contains(&token) {
-            let flag = create_flag(token)?;
-            flags.push(flag);
-
-        } else {
-
-            return Err(format!(
-                "Unknown command {}", token)
-                .into());
+        } else if !flag_builder.parse(token.as_str())? {
+            argv.push(token);
         }
     }
 
     Ok(Args {
         command: main_command,
-        flags: flags
+        argv: argv,
+        flags: flag_builder.build()
     })
 }
 
-fn create_command(tokens: &mut Peekable<SplitWhitespace<'_>>, token: &str) -> Result<Command> {
-    // Returns an option enum with a command enum as a value or no value varient depending on the next token
+fn split(s: &str) -> impl Iterator<Item = Result<String>> {
+    // Splits a token
+    let mut chars = s.chars();
+    let mut current_token = String::new();
 
-    match token {
-        "cd" => {
-            let next_token = create_next_token(tokens)
-            .ok_or("Command 'cd' must contain a directory value")?;
+    std::iter::from_fn(move || {
 
-            Ok(Command::Cd(format!("{}", next_token)))
-        },
-        "ls" => {
-            Ok(Command::Ls)
-        },
-        "new" => {
-            let next_token = create_next_token(tokens)
-            .ok_or("Command 'new' must contain a directory name")?;
+        while let Some(char) = chars.next() {
+            if char == '"' || char == '\'' {
+                while let Some(next_char) = chars.next() {
+                    if next_char == '"' || next_char == '\'' {
+                        break
+                    }
 
-            Ok(Command::New(format!("{}", next_token)))
-        },
-        "del" => {
-            let next_token = create_next_token(tokens)
-            .ok_or("Command 'del' must contain a directory or file name")?;
+                    current_token.push(next_char)
+                }
 
-            Ok(Command::Del(format!("{}", next_token)))
+            } else if char == ' ' {
+
+                if !current_token.is_empty() {
+                    let token = std::mem::take(&mut current_token);
+                    return Some(Ok(token));
+                }
+
+            } else if char == '\\' {
+                let Some(next_char) = chars.next() else {
+                    return Some(Err(AppError::from(ERROR_STRING_ENDS_IN_BACKSLASH)));
+                };
+
+                current_token.push(next_char)
+            } else {
+                current_token.push(char)
+            }
         }
-        _ => unreachable!()
-    }
-}
 
-fn create_flag(token: &str) -> Result<Flag> {
-    match token {
-        "--long" | "l" => {
-            Ok(Flag::Long)
-        },
-        "--help" | "h" => {
-            Ok(Flag::Help)
-        },
-        "--human" => {
-            Ok(Flag::Human)
-        },
-        "--recursive" => {
-            Ok(Flag::Recursive)
+        if !current_token.is_empty() {
+            let token = std::mem::take(&mut current_token);
+            return Some(Ok(token));
         }
-        flag => {
-            Err(format!(
-                "{} is not a valid flag", flag
-                ).into())
+
+        None
+    })
+}
+
+pub fn parse_pipe_args(s: &mut String) -> impl Iterator<Item = ArgRunStatus> {
+    //
+    //
+
+    let mut chars = s.chars();
+    let mut current_token = String::new();
+    let mut next_is_conditional = false;
+
+    std::iter::from_fn(move || {
+        while let Some(char) = chars.next() {
+            if char == '"' || char == '\'' {
+
+                current_token.push(char);
+
+                while let Some(next_char) = chars.next() {
+
+                    current_token.push(next_char);
+
+                    if next_char == '"' || next_char == '\'' {
+                        break
+                    }
+                }
+
+            } else if char == '\\' {
+
+                current_token.push(char);
+                if let Some(next_char) = chars.next() {
+                    current_token.push(next_char);
+                }
+
+            } else if char == '&' {
+
+                let Some(next_char) = chars.next() else {
+                    current_token.push(char);
+                    continue
+                };
+
+                if next_char != '&' {
+                    current_token.push(char);
+                    current_token.push(next_char);
+                    continue
+                }
+
+                if !current_token.is_empty() {
+                    let token = std::mem::take(&mut current_token);
+                    if next_is_conditional {
+                        next_is_conditional = true;
+                        return Some(ArgRunStatus::Conditional(token))
+                    } else {
+                        next_is_conditional = true;
+                        return Some(ArgRunStatus::UnConditional(token))
+                    }
+                }
+            } else if char == ';' {
+
+                if !current_token.is_empty() {
+                    let token = std::mem::take(&mut current_token);
+                    if next_is_conditional {
+                        next_is_conditional = false;
+                        return Some(ArgRunStatus::Conditional(token))
+                    } else {
+                        next_is_conditional = false;
+                        return Some(ArgRunStatus::UnConditional(token))
+                    }
+                }
+
+            } else if char == '|' {
+
+                if !current_token.is_empty() {
+                    let token = std::mem::take(&mut current_token);
+                    
+                    next_is_conditional = true;
+                    return Some(ArgRunStatus::Pipeline(token))
+                }
+
+            } else {
+                current_token.push(char);
+            }
         }
-    }
+
+        if !current_token.is_empty() {
+            let token = std::mem::take(&mut current_token);
+            if next_is_conditional {
+                next_is_conditional = true;
+                return Some(ArgRunStatus::Conditional(token))
+            } else {
+                next_is_conditional = true;
+                return Some(ArgRunStatus::UnConditional(token))
+            }
+        }
+
+        None
+    })
 }
 
-fn create_next_token(tokens: &mut Peekable<SplitWhitespace<'_>>) -> Option<String> {
-    let mut token = String::new();
+const ERROR_STRING_ENDS_IN_BACKSLASH: Error = Error {
+    error_type: ErrorType::InvalidToken,
+    error_message: "Cannot end with a backslash as backslash is the escape character"
+};
 
-    loop {
-        let next = tokens.next_if(|t| is_next_token_a_value(t));
+const ERROR_NO_INPUT: Error = Error {
+    error_type: ErrorType::EmptyString,
+    error_message: "Input field must not be empty"
+};
 
-        let Some(next) = next else {
-            break
-        };
-
-        token.push_str(&format!(" {}", next));
-    }
-
-    Some(token.trim_start().to_string())
-}
-
-fn is_next_token_a_value(token: &str) -> bool {
-    // Returns true if the next token is a command or flag
-
-    !(COMMANDS.contains(&token) || FLAGS.contains(&token))
-}
+const ERROR_HAS_TWO_COMMANDS: HintError = HintError {
+    error_type: ErrorType::AlreadyExists,
+    error_message: "Cannot have two commands in one argument",
+    hint_message: "Consider seperating commands with '&&' or ';'. Use --help for more details"
+};

@@ -6,8 +6,7 @@ mod fs;
 use crate::cli::repl;
 use std::process::exit;
 
-pub type Result<T> = core::result::Result<T, Error>;
-type Error = Box<dyn std::error::Error>; // early dev
+use crate::cli::error::Result;
 
 fn main() -> Result<()> {
     /*
