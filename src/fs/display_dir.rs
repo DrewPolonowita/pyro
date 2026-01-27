@@ -5,9 +5,12 @@ use std::iter::Iterator;
 use tabled::{builder::Builder, settings::Style, Table};
 
 use crate::cli::error::Result;
-use crate::cli::args::Flags;
+
+use crate::cli::run_command::flag_error;
+use crate::cli::args::{FlagsBuilder, Flags};
 
 use crate::fs::files::{FileType, OptionDate, FileEntry, HEADERS, HEADERS_LONG};
+use crate::cli::error::{AppError, Error, ErrorType};
 
 const BITES_PER_NEXT_UNIT: f64 = 1024.0;
 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x00000002;
@@ -31,8 +34,34 @@ fn is_file_hidden(_metadata: std::fs::Metadata, filename: std::ffi::OsString) ->
     }
 }
 
-pub fn command_ls(curr_path: &Path, flags: Flags) -> Result<String> {
-    // Lists the files in a path
+pub fn command_ls(curr_path: &Path, flags: Flags, argv: &[String]) -> Result<String> {
+    // Lists all files in a given directory and displays them using a table with optional user Flags
+    //
+    // #arguments
+    // curr_path: A reference to the directory to displays
+    // flags: A Flags struct with the user input Flags
+    //
+    // #returns
+    // Returns an ok result enum with a formatted string containing the table to be printed to the console
+    // Returns an err result enum when the path doesn't exist, the flags aren't supported, there is an argument given etc.
+    //
+
+    // Causes an error if a not supported flag is given
+    let _ = flag_error("ls", {
+        FlagsBuilder::new()
+        .long()
+        .human()
+        .all()
+        .time()
+        .dir()
+        .reverse()
+        .build()
+    }, &flags)?;
+
+    // Causes an error if the user supplies an argument
+    if let Some(_) = argv.get(0) {
+        return Err(AppError::from(ERROR_PROVIDED_ARGS));
+    }
 
     let dir_entries = read_dir_entries(&curr_path, &flags)?;
     let mut dir_entries: Vec<FileEntry> = dir_entries.collect();
@@ -52,7 +81,7 @@ pub fn command_ls(curr_path: &Path, flags: Flags) -> Result<String> {
     Ok(format!("{}", table))
 }
 
-pub fn read_dir_entries(dir_addr: &Path, flags: &Flags) -> Result<impl Iterator<Item = FileEntry>> {
+fn read_dir_entries(dir_addr: &Path, flags: &Flags) -> Result<impl Iterator<Item = FileEntry>> {
     // From a relative directory address, gives the files and directories founds at that address
     //
     // #Arguments
@@ -95,7 +124,7 @@ pub fn read_dir_entries(dir_addr: &Path, flags: &Flags) -> Result<impl Iterator<
     }))
 }
 
-pub fn build_entry_table(dir_iter: Vec<FileEntry>, flags: &Flags) -> Result<Table> {
+fn build_entry_table(dir_iter: Vec<FileEntry>, flags: &Flags) -> Result<Table> {
     // Returns a table that tabulates and displays information about each entry in a Directory
     //
     // #Arguments
@@ -146,6 +175,8 @@ pub fn build_entry_table(dir_iter: Vec<FileEntry>, flags: &Flags) -> Result<Tabl
 
 
 fn format_size(size: u64) -> String {
+    // Formats a u64 representing the size in bits into a string of form xxx unit
+
     let size = size as f64;
 
     if size < 1024.0 {
@@ -162,3 +193,8 @@ fn format_size(size: u64) -> String {
         format!("{:.2} PB", size/BITES_PER_NEXT_UNIT.powf(5.0))
     }
 }
+
+const ERROR_PROVIDED_ARGS: Error = Error {
+    error_type: ErrorType::InvalidToken,
+    error_message: "Command 'ls' does not take any arguments"
+};

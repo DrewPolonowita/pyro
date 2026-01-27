@@ -62,6 +62,46 @@ impl FlagsBuilder {
         }
     }
 
+    pub fn long(mut self) -> Self {
+        self.flags.long = true;
+        self
+    }
+
+    pub fn human(mut self) -> Self {
+        self.flags.human = true;
+        self
+    }
+
+    pub fn recursive(mut self) -> Self {
+        self.flags.recursive = true;
+        self
+    }
+
+    pub fn dir(mut self) -> Self {
+        self.flags.dir = true;
+        self
+    }
+
+    pub fn force(mut self) -> Self {
+        self.flags.force = true;
+        self
+    }
+
+    pub fn time(mut self) -> Self {
+        self.flags.time = true;
+        self
+    }
+
+    pub fn all(mut self) -> Self {
+        self.flags.all = true;
+        self
+    }
+
+    pub fn reverse(mut self) -> Self {
+        self.flags.reverse = true;
+        self
+    }
+
     pub fn parse(&mut self, token: &str) -> Result<bool> {
         match token {
             "--long" => {

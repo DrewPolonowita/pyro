@@ -2,25 +2,35 @@ use crate::cli::error::{Result, AppError};
 use std::path::Path;
 use crate::cli::error::{HintError, ErrorType, Error};
 
-use crate::cli::args::Flags;
+use crate::cli::run_command::flag_error;
+use crate::cli::args::{FlagsBuilder, Flags};
 
 pub fn create_from_path(curr_dir: &Path, argv: &[String], flags: Flags) -> Result<()> {
     // Creates a file or directory at the given location with a name
     //
     // #arguments
-    // *path The current path of the CLI
-    // *filename The local path from the CLI path to the file or remove_directory
-    // *is_dir A bool that creates a directory instead of a file
-    // *is_recursive A bool that will recursivly create the parent paths if they do not exist
-    // *is_force Will A bool that will replace files if they conflict
+    // *curr_dir: The current path of the CLI
+    // *argv: A vector of provided arguments, this vector must be of length one
+    // *flags: A Flags struct containing all the user flag options
     //
     // #returns
     // This function only returns errors
 
+    // Returns an error when the user inputs a not supported flag
+    let _ = flag_error("new", {
+        FlagsBuilder::new()
+        .recursive()
+        .force()
+        .dir()
+        .build()
+    }, &flags)?;
+
+    // Errors if only one argument is present
     let Some(local_path) = argv.get(0) else {
         return Err(AppError::from(ERROR_NO_ARGUMENTS_FOR_NEW));
     };
 
+    // Errors if more than one argument is present
     if let Some(_) = argv.get(1) {
         return Err(AppError::from(ERROR_TOO_MANY_ARGUMENTS_FOR_NEW));
     }
@@ -137,11 +147,29 @@ pub fn create_from_path(curr_dir: &Path, argv: &[String], flags: Flags) -> Resul
 }
 
 pub fn remove_directory(path: &Path, argv: &[String], flags: Flags) -> Result<()> {
+    // Deletes a file in a given directory with the filename in argv[0].
+    //
+    // #arguments
+    // *path: A reference to the current working directory
+    // *argv: A vector containing the arguments provided by the user
+    // *flags: A Flag struct instance containing the user flags
+    //
+    // #returns
+    // Returns an empty result enum and errors when invalid flags are used, non file permissions, invalid number of args etc.
 
+    // Returns an error if invalid flags are provided
+    let _ = flag_error("del", {
+        FlagsBuilder::new()
+        .recursive()
+        .build()
+    }, &flags)?;
+
+    // Returns an error if there are no args provided
     let Some(filename) = argv.get(0) else {
         return Err(AppError::from(ERROR_NO_ARGUMENTS_FOR_DEL));
     };
 
+    // Return an error if there are too many args provided
     if let Some(_) = argv.get(1) {
         return Err(AppError::from(ERROR_TOO_MANY_ARGUMENTS_FOR_DEL));
     }
@@ -178,6 +206,9 @@ pub fn remove_directory(path: &Path, argv: &[String], flags: Flags) -> Result<()
 }
 
 fn find_blocking_component(current_dir: &Path, path: &Path) -> Result<Option<std::path::PathBuf>> {
+    // This function finds if a file is on the given directory and returns its file path else returns a None
+    // This function errors if the path is non existant.
+
     let mut current_dir = std::path::PathBuf::from(current_dir);
 
     for comp in path.components() {

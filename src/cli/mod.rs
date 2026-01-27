@@ -1,9 +1,9 @@
 pub mod error;
 pub mod format_input;
 pub mod args;
+pub mod run_command;
 
 mod help;
-mod run_command;
 
 use crate::cli::format_input::{format_input, parse_pipe_args};
 use crate::cli::run_command::run_command;
@@ -39,7 +39,7 @@ impl StdStream {
 
 pub fn repl() -> Result<()>{
     //let mut curr_path = env::current_exe()?;
-    let mut curr_path = PathBuf::from(r"C:\\Users\Drew\Documents\Rust Programs\CLI File Explorer\test");
+    let mut curr_path = PathBuf::from(r"C:\Users\Drew\Documents\Rust Apps\pyro\test");
     let mut std_stream = StdStream {
         stdin: String::new(),
         stdout: String::new()

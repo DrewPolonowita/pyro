@@ -51,6 +51,7 @@ pub fn format_input(user_input: &str) -> Result<Args>{
 
 fn split(s: &str) -> impl Iterator<Item = Result<String>> {
     // Splits a token
+
     let mut chars = s.chars();
     let mut current_token = String::new();
 
