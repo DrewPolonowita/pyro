@@ -38,8 +38,13 @@ impl StdStream {
 }
 
 pub fn repl() -> Result<()>{
+<<<<<<< HEAD
     let mut curr_path = env::current_dir()?;
     //let mut curr_path = PathBuf::from(r"C:\Users\Drew\Documents\Rust Apps\pyro\test");
+=======
+    let mut curr_path = std::env::current_dir()?;
+    // let _ = curr_path.pop();
+>>>>>>> 30387090dd207a1b6c84ce439902c0a50b388602
     let mut std_stream = StdStream {
         stdin: String::new(),
         stdout: String::new()
