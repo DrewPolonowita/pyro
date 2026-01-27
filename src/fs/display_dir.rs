@@ -68,6 +68,8 @@ pub fn command_ls(curr_path: &Path, flags: Flags, argv: &[String]) -> Result<Str
 
     if flags.time {
         dir_entries.sort_by_key(|item| item.date_modified.clone());
+    } else {
+        dir_entries.sort_by_key(|item| item.filename.clone());
     }
     if flags.dir {
         dir_entries.sort_by_key(|item| item.file_type.clone());
