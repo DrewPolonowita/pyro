@@ -15,6 +15,7 @@ use crate::cli::error::{AppError, Error, ErrorType};
 const BITES_PER_NEXT_UNIT: f64 = 1024.0;
 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x00000002;
 
+
 #[cfg(windows)]
 fn is_file_hidden(metadata: std::fs::Metadata, _filename: std::ffi::OsString) -> bool {
     // Checks if the file is hidden by checking the hidden attribute on windows
@@ -34,12 +35,14 @@ fn is_file_hidden(_metadata: std::fs::Metadata, filename: std::ffi::OsString) ->
     }
 }
 
+
 pub fn command_ls(curr_path: &Path, flags: Flags, argv: &[String]) -> Result<String> {
     // Lists all files in a given directory and displays them using a table with optional user Flags
     //
     // #arguments
     // curr_path: A reference to the directory to displays
     // flags: A Flags struct with the user input Flags
+    // argv: A list of user arguments
     //
     // #returns
     // Returns an ok result enum with a formatted string containing the table to be printed to the console
@@ -63,9 +66,11 @@ pub fn command_ls(curr_path: &Path, flags: Flags, argv: &[String]) -> Result<Str
         return Err(AppError::from(ERROR_PROVIDED_ARGS));
     }
 
+    // Gets all items in the directory and characteriszes the metadata
     let dir_entries = read_dir_entries(&curr_path, &flags)?;
     let mut dir_entries: Vec<FileEntry> = dir_entries.collect();
 
+    // sorting the list, default is filename
     if flags.time {
         dir_entries.sort_by_key(|item| item.date_modified.clone());
     } else {
@@ -78,8 +83,10 @@ pub fn command_ls(curr_path: &Path, flags: Flags, argv: &[String]) -> Result<Str
         dir_entries.reverse();
     }
 
+    // creates the table
     let table = build_entry_table(dir_entries, &flags)?;
 
+    // returns the table
     Ok(format!("{}", table))
 }
 
@@ -88,6 +95,7 @@ fn read_dir_entries(dir_addr: &Path, flags: &Flags) -> Result<impl Iterator<Item
     //
     // #Arguments
     // *dir_addr A relative directory address from the script as a reference to a PathBuf
+    // *flags: A Flags struct containing the user flags
     //
     // #Returns
     // Returns result enum with a vector containing type FileEntry or a std io error
@@ -131,6 +139,7 @@ fn build_entry_table(dir_iter: Vec<FileEntry>, flags: &Flags) -> Result<Table> {
     //
     // #Arguments
     // *dir_iter Is an iterator containing Results of FileEntries in a directory
+    // *flags: A Flags struct containing the user flags
     //
     // #Returns
     // Returns an option with a table or error message

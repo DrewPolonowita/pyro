@@ -74,5 +74,26 @@ pub fn flag_help(command: Command) -> String {
 }
 
 pub fn command_help() -> String {
-    format!("{}", "big helper right here")
+    format!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        "\nPyro - A command line file explorer by Drew Polonowita\n\n",
+        "Use flag --help to see specific help and flags for a given command: e.g cd --help\n",
+        "\nParsing your arguments:\n",
+        "\tCommands, flags and args must be seperated by spaces; order is non important for commands and flags\n",
+        "\tArgs are parsed in order of appearance\n\t",
+        r"Spaces can be parsed using a '\ ' or using quotes around your argument",
+        "\n\tIndividual lines are seperated by && for a conditional running and ; for unconditional running (whether the command runs if the previous failed)",
+        "\n\tLines seperated by | indicates a pipeline in which the stdout is piped into the stdin of the next line\n\t",
+        r"e.g. cmd arg1 --flag arg2 && arg1 arg2 -flag cmd  --------- move -f 'hello.py' new\ file.py",
+        "\n\nCommands: Use --help on a command for more info\n",
+        "\tls: Lists files and directories in a directory\n",
+        "\tcd: Navigates the working directory\n",
+        "\tnew: Creates new files and directories\n",
+        "\tdel: Deletes files and directories\n",
+        "\techo: Prints arguments to the console\n",
+        "\tcat: Concatenates file contents or print the stdin to the console\n",
+        "\tinfo: Gets info on a specific file\n",
+        "\tpwd: Prints current working directory to the console\n",
+        "\tmove: Renames or moves a file to a new location\n",
+    )
 }

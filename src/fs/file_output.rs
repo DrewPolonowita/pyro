@@ -10,6 +10,7 @@ pub fn command_cat(argv: &[String], stdin: &String, curr_path: &std::path::Path,
     // *argv: A vector containing the user arguments
     // *stdin: A string reference containing the stdin value
     // *curr_path: A path reference of the current working directory
+    // *flags: A Flags struct containing the user flags
     //
     // #returns
     // A result enum with the text to print to the console for stdout
@@ -45,6 +46,7 @@ pub fn command_echo(argv: &[String], flags: Flags) -> Result<String> {
     //
     // #arguments
     // *argv: A vector containing the user arguments
+    // *flags: A Flags struct containing the user flags
     //
     // #returns
     // A result enum with the text to print to the console for stdout

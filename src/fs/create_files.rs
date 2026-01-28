@@ -177,28 +177,41 @@ pub fn remove_directory(path: &Path, argv: &[String], flags: Flags) -> Result<()
     let path = path.join(filename);
     let metadata = std::fs::metadata(&path)?;
 
+    // file removeing is a directory
     if metadata.is_dir() {
+
+        // remove all items in the dir since recursive is a flag
         if flags.recursive {
             std::fs::remove_dir_all(path)?;
         } else {
 
+            // checks how many children are in the dir
             match std::fs::read_dir(&path) {
                 Ok(dir_items) => {
+
+                    // dir is not empty, must use recursive flag
                     if dir_items.count() > 0 {
                         return Err(AppError::from(ERROR_NOT_USING_DEL_RECURSIVE));
                     }
                 },
+
+                // operation failed, likely permissions error
                 Err(e) => return Err(e.into())
             }
 
+            // removes the filke
             std::fs::remove_dir(path)?;
         }
 
+    // file removing is a file
     } else {
+
+        // recursive errors on a file since its only for directories
         if flags.recursive {
             return Err(AppError::from(ERROR_USING_RECURSIVE_ON_A_FILE));
         }
 
+        // removes the path
         std::fs::remove_file(path)?;
     }
 

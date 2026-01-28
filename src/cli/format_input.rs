@@ -50,7 +50,14 @@ pub fn format_input(user_input: &str) -> Result<Args>{
 }
 
 fn split(s: &str) -> impl Iterator<Item = Result<String>> {
-    // Splits a token
+    // Splits a token into individual command statements from the user by && ; and | for pipelines
+    //
+    // #arguments
+    // *s: A string representing the user input
+    //
+    // #returns
+    // A iterator with a result enum of a string where each item is tokenized but not charactizered
+    // The tokenization rules are split at spaces except for '\ ' or when quotes are used in which quotes are a single token
 
     let mut chars = s.chars();
     let mut current_token = String::new();
@@ -95,8 +102,13 @@ fn split(s: &str) -> impl Iterator<Item = Result<String>> {
 }
 
 pub fn parse_pipe_args(s: &mut String) -> impl Iterator<Item = ArgRunStatus> {
+    // Splits a token into individual command statements from the user by && ; and | for pipelines
     //
+    // #arguments
+    // *s: A mutable string reference representing the user input
     //
+    // #returns
+    // An iterator of ArgRunStatus enums which tell the intepreter how to deal with errors moving onto the next item
 
     let mut chars = s.chars();
     let mut current_token = String::new();

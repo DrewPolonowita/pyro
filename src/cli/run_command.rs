@@ -17,8 +17,9 @@ pub fn run_command(args: Args, curr_path: &mut PathBuf, std_stream: &mut StdStre
     // Runs the required command with the flag arguments for a given command
     //
     // #arguments
-    // *args An Args enum containing the command and the given flags for the querry
-    // *curr_path The current working directory path of the file explorer
+    // *args: An Args enum containing the command and the given flags for the querry
+    // *curr_path: The current working directory path of the file explorer
+    // *std_stream: A StdStream struct 
     //
     // #returns
     // This function returns an empty Result type, this function can return errors but the Ok value is discarded
@@ -61,7 +62,6 @@ pub fn run_command(args: Args, curr_path: &mut PathBuf, std_stream: &mut StdStre
                     std_stream.write(command_pwd(&curr_path, &args.argv, flags)?);
                 },
                 Command::Move => {
-                    //
                     let _ = move_directory(&curr_path, &args.argv, &flags)?;
                 }
             }
