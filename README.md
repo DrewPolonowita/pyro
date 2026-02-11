@@ -1,11 +1,15 @@
 # Pryo - A simple CLI File explorer built in rust
+Author: Drew Polonowita
 
-## A CLI File explorer built in rust with simple commands for CRUD operations and piping
+## Intro; what is this about!
 
--intro paragraph
--problem it solved
+Pyro is a CLI file explorer, built in rust as a personal project to learn about technologies in rust and the CLI space. This project includes basic commands for navigation, help, crud operations and pipelines.
 
--installation instructions
+## What I learned.
 
--issues
+This project made me more comfortable with text proccessing; bubbling errors and classing error types; using convenentions to avoid destructive actions without user consent, e.g: using -f flags; rust ownership and borrowing rules and much more. This was my first project using rust which made me more comfortable in the space.
 
+## Current issues/future updates
+
+Info command has not been created
+Pipelines don't allow for brackets
